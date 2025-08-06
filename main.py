@@ -44,7 +44,7 @@ import pyautogui
 # Face Recognition
 CONFIDENCE_THRESHOLD = 0.15
 SIMILARITY_THRESHOLD = 0.75
-FACE_RECOGNITION_DURATION = 3.0
+FACE_RECOGNITION_DURATION = 1.5
 DETECTION_MODEL_PATH = "face/Lightweight-Face-Detection.tflite"
 EMBEDDING_MODEL_PATH = "face/MobileFaceNet_9925_9680.tflite"
 FACE_DATABASE_FILENAME = "face/pi_face_database_multi.pkl"
@@ -230,7 +230,8 @@ class FaceRecognitionManager:
 
 class HandTrackingManager:
     """Handles hand tracking, gesture recognition, and actions like OCR & screen capture."""
-    def __init__(self, camera, tkinter_queue=None):
+    # ### 수정된 부분 1: __init__ 생성자에 screen_size 파라미터 추가 ###
+    def __init__(self, camera, tkinter_queue=None, screen_size=None):
         self.camera = camera; self.tkinter_queue = tkinter_queue
         self.mp_hands = mp.solutions.hands; self.mp_drawing = mp.solutions.drawing_utils
         self.hands, self.keypoint_classifier = None, None
@@ -241,12 +242,32 @@ class HandTrackingManager:
         self.mode_toggle_cooldown = 0
         self.awaiting_ocr_confirmation, self.awaiting_capture_confirmation = False, False
         self.mouse_controller = Controller()
-        self.screen_width, self.screen_height = self.get_screen_size()
+
+        # ### 수정된 부분 2: screen_size를 직접 받아서 사용 ###
+        if screen_size:
+            self.screen_width, self.screen_height = screen_size
+            print(f"✓ Screen size received: {self.screen_width}x{self.screen_height}")
+        else:
+            # 비상용 폴백 코드
+            print("Warning: Screen size not provided, attempting fallback detection.")
+            try:
+                root = tk.Tk(); root.withdraw()
+                self.screen_width, self.screen_height = root.winfo_screenwidth(), root.winfo_screenheight()
+                root.destroy()
+            except Exception as e:
+                print(f"Fallback screen size detection failed: {e}. Defaulting to 1920x1080.")
+                self.screen_width, self.screen_height = 1920, 1080
+
         self.last_finger_pos, self.finger_stable_start_time = None, None
         self.finger_stable_threshold, self.dwell_click_duration = 20, 1.5
         self.capture_points, self.screen_capture_points = [], []
 
+    # ### 삭제된 부분: 이 함수는 더 이상 필요 없으므로 클래스에서 완전히 제거합니다. ###
+    # def get_screen_size(self):
+    #     ...
+
     def initialize(self):
+        # (이하 initialize 함수 내용은 모두 동일)
         if self.is_initialized: return True
         try:
             original_dir = os.getcwd()
@@ -273,6 +294,7 @@ class HandTrackingManager:
         except Exception as e:
             if 'original_dir' in locals(): os.chdir(original_dir)
             print(f"✗ Hand tracking & OCR initialization error: {e}"); return False
+
     
     def process_frame(self, frame):
         if not self.is_initialized or frame is None: return frame, None, None
@@ -291,9 +313,8 @@ class HandTrackingManager:
         return frame, gesture, results.multi_hand_landmarks
 
     def handle_gestures(self, gesture, hand_landmarks, frame):
-        # ### FIX 2: OCR 기능과 화면 캡처 기능을 하나로 통합 ###
         if gesture == "Open" and self.mode_toggle_cooldown == 0:
-            modes = ["Mouse Control", "Screen Capture & OCR"] # 모드 간소화
+            modes = ["Mouse Control", "Screen Capture & OCR"]
             try:
                 current_index = modes.index(self.current_mode)
                 self.current_mode = modes[(current_index + 1) % len(modes)]
@@ -311,51 +332,78 @@ class HandTrackingManager:
             elif self.current_mode == "Screen Capture & OCR": self.handle_screen_capture_pointing(screen_pos)
         
         elif gesture == "Close" and self.awaiting_capture_confirmation:
-            # 캡처와 OCR을 순차적으로 실행
             self.perform_screen_capture_and_ocr()
             self.reset_mode_state()
 
     def perform_screen_capture_and_ocr(self):
         if len(self.screen_capture_points) != 2: return
-        x1, y1 = self.screen_capture_points[0]; x2, y2 = self.screen_capture_points[1]
+        x1, y1 = self.screen_capture_points[0]
+        x2, y2 = self.screen_capture_points[1]
+        
         left, top, width, height = min(x1, x2), min(y1, y2), abs(x1 - x2), abs(y1 - y2)
-        if width < 10 or height < 10: print("✗ Capture region too small."); return
+
+        if width < 10 or height < 10:
+            print("✗ Capture region too small.")
+            self.stop_screen_box_drawing()
+            return
         
         try:
-            # 1. 화면 캡처
-            screenshot = pyautogui.screenshot(region=(left, top, width, height))
+            # 1. 화면 캡처 (PIL Image 객체)
+            screenshot_pil = pyautogui.screenshot(region=(left, top, width, height))
+            
+            # (선택) 캡처된 이미지를 파일로 저장
             timestamp = time.strftime('%Y%m%d_%H%M%S')
             filename = f"capture_{timestamp}.png"
-            screenshot.save(filename)
+            screenshot_pil.save(filename)
             print(f"✓ Screen capture saved as: {filename}")
 
-            # 2. 저장된 이미지로 OCR 실행
-            self.run_ocr_on_captured_file(filename)
+            # 2. PIL Image를 OpenCV(Numpy) 형식으로 변환
+            captured_image = cv2.cvtColor(np.array(screenshot_pil), cv2.COLOR_RGB2BGR)
+
+            # 3. 변환된 이미지 데이터로 직접 OCR 수행
+            print(f"--- Running OCR on captured region (w:{width}, h:{height}) ---")
+            boxes = self._detect_text_boxes_east(captured_image, min_confidence=0.3)
+            texts = []
+            # 원본 이미지 복사 (결과를 그리기 위함)
+            result_image = captured_image.copy()
+
+            for (sx, sy, ex, ey) in boxes:
+                sx, sy = max(0, sx), max(0, sy)
+                ex, ey = min(captured_image.shape[1], ex), min(captured_image.shape[0], ey)
+                if ex - sx < 5 or ey - sy < 5: continue
+
+                cropped = captured_image[sy:ey, sx:ex]
+                if cropped.size == 0: continue
+                
+                text = self._recognize_single_text(cropped)
+                texts.append(text)
+
+                # ### 추가된 부분: 결과 이미지에 박스와 텍스트 그리기 ###
+                # 인식된 영역에 초록색 사각형 그리기
+                cv2.rectangle(result_image, (sx, sy), (ex, ey), (0, 255, 0), 2)
+                # 인식된 텍스트를 사각형 위에 노란색으로 쓰기
+                # 텍스트 배경을 위한 사각형 추가
+                (text_width, text_height), baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+                text_origin = (sx, sy - text_height - baseline if sy > 20 else sy + text_height + baseline)
+                cv2.rectangle(result_image, (text_origin[0], text_origin[1] + baseline), (text_origin[0] + text_width, text_origin[1] - text_height), (0, 0, 0), -1)
+                cv2.putText(result_image, text, text_origin, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                
+            full_text = ' '.join(texts)
+            print(f"✓ OCR finished. Full text: {full_text}")
             
-        except Exception as e: print(f"✗ Screen capture or OCR failed: {e}")
-        finally: self.stop_screen_box_drawing()
+            # ### 추가된 부분: 최종 결과 이미지를 새 창으로 표시 ###
+            cv2.imshow("OCR Result", result_image)
+            # 사용자가 아무 키나 누를 때까지 대기
+            cv2.waitKey(0)
+            # 결과 창 닫기
+            cv2.destroyWindow("OCR Result")
 
-    def run_ocr_on_captured_file(self, image_path):
-        print(f"--- Running OCR on {image_path} ---")
-        image = cv2.imread(image_path)
-        if image is None: print(f"✗ Failed to load image for OCR: {image_path}"); return
-        
-        # 이미지 전체에 대해 OCR 수행
-        boxes = self._detect_text_boxes_east(image, min_confidence=0.3)
-        texts = []
-        for (sx, sy, ex, ey) in boxes:
-            sx, sy = max(0, sx), max(0, sy)
-            ex, ey = min(image.shape[1], ex), min(image.shape[0], ey)
-            if ex - sx < 5 or ey - sy < 5: continue
-            cropped = image[sy:ey, sx:ex]
-            if cropped.size == 0: continue
-            text = self._recognize_single_text(cropped)
-            texts.append(text)
-        
-        print(f"✓ OCR finished. Full text: {' '.join(texts)}")
-        return texts
+        except Exception as e:
+            print(f"✗ Screen capture or OCR failed: {e}")
+        finally:
+            self.stop_screen_box_drawing()
 
-    # --- 나머지 헬퍼 함수들은 이전과 동일 ---
+    # --- 나머지 헬퍼 함수들은 변경 없음 ---
     def get_screen_size(self):
         try:
             root = tk.Tk(); root.withdraw()
@@ -363,10 +411,12 @@ class HandTrackingManager:
             root.destroy()
             return w, h
         except: return 1920, 1080
+    
     def map_finger_to_screen(self, x, y, fw, fh):
         sx = int((x / fw) * self.screen_width)
         sy = int((y / fh) * self.screen_height)
         return max(0, min(sx, self.screen_width - 1)), max(0, min(sy, self.screen_height - 1))
+
     def handle_dwell_click(self, pos):
         dist = np.linalg.norm(np.array(pos)-np.array(self.last_finger_pos)) if self.last_finger_pos else float('inf')
         if dist <= self.finger_stable_threshold:
@@ -375,6 +425,7 @@ class HandTrackingManager:
                 self.mouse_controller.click(Button.left); print(f"✓ Dwell click at {pos}"); self.finger_stable_start_time=None
         else: self.finger_stable_start_time = None
         self.last_finger_pos = pos
+
     def handle_screen_capture_pointing(self, pos):
         if len(self.screen_capture_points) == 1: self.update_screen_box_drawing(self.screen_capture_points[0], pos)
         dist = np.linalg.norm(np.array(pos) - np.array(self.last_finger_pos)) if self.last_finger_pos else float('inf')
@@ -388,12 +439,14 @@ class HandTrackingManager:
                 self.finger_stable_start_time = None
         else: self.finger_stable_start_time = None
         self.last_finger_pos = pos
+
     def _decode_prediction(self, pred):
         if tf is None: return "[ERROR: TensorFlow not installed]"
         input_len = np.ones(pred.shape[0]) * pred.shape[1]
         decoded, _ = tf.keras.backend.ctc_decode(pred, input_length=input_len, greedy=True)
         decoded = decoded[0][0].numpy()
         return ''.join(self.CHARSET[idx] for idx in decoded.flatten() if 0 <= idx < len(self.CHARSET))
+
     def _recognize_single_text(self, roi):
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         resized = cv2.resize(gray, (200, 31))
@@ -403,6 +456,7 @@ class HandTrackingManager:
         self.ocr_recognizer_interpreter.invoke()
         y_pred = self.ocr_recognizer_interpreter.get_tensor(self.ocr_output_details[0]['index'])
         return self._decode_prediction(y_pred)
+
     def _decode_east_predictions(self, scores, geometry, min_confidence):
         (numRows, numCols) = scores.shape[2:4]
         rects, confidences = [], []
@@ -417,6 +471,7 @@ class HandTrackingManager:
                 startX, startY = int(endX - w), int(endY - h)
                 rects.append((startX, startY, endX, endY)); confidences.append(scoresData[x])
         return rects, confidences
+
     def _detect_text_boxes_east(self, roi, min_confidence=0.5):
         (H, W) = roi.shape[:2]; newW, newH = 320, 320 
         rW, rH = W / float(newW), H / float(newH)
@@ -431,20 +486,24 @@ class HandTrackingManager:
                 (startX, startY, endX, endY) = rects[i]
                 results.append((int(startX*rW), int(startY*rH), int(endX*rW), int(endY*rH)))
         return results
+
     def start_screen_box_drawing(self):
         if self.tkinter_queue: self.tkinter_queue.put(('start_box_drawing',))
     def update_screen_box_drawing(self, p1, p2):
         if self.tkinter_queue: self.tkinter_queue.put(('update_box_drawing', p1[0], p1[1], p2[0], p2[1]))
     def stop_screen_box_drawing(self):
         if self.tkinter_queue: self.tkinter_queue.put(('stop_box_drawing',))
+
     def reset_mode_state(self):
         self.capture_points, self.screen_capture_points = [], []
         self.awaiting_ocr_confirmation, self.awaiting_capture_confirmation = False, False
         self.last_finger_pos, self.finger_stable_start_time = None, None
         self.stop_screen_box_drawing()
+
     def handle_key(self, key):
         if key == ord('r'): print("Restarting capture."); self.reset_mode_state(); return False
         return True
+
     def draw_ui(self, frame):
         cv2.putText(frame, f"Mode: {self.current_mode}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
         instruction = ""
@@ -455,17 +514,24 @@ class HandTrackingManager:
         elif self.current_mode == "Mouse Control": instruction = "Dwell for 1.5s to CLICK"
         if instruction: cv2.putText(frame, instruction, (10, frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
-
 class IntegratedGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Face & Hand Tracking System")
         self.root.geometry("800x600")
         self.root.configure(bg='#2c3e50')
+
+        # 1. 해상도를 1920x1080으로 고정하는 것은 그대로 유지합니다.
+        self.screen_width, self.screen_height = 1920, 1080
+        print(f"✓ Screen size manually set to: {self.screen_width}x{self.screen_height}")
+
         self.tkinter_queue = queue.Queue()
         self.camera = SharedCamera()
         self.face_manager = FaceRecognitionManager(self.camera)
-        self.hand_manager = HandTrackingManager(self.camera, self.tkinter_queue)
+
+        # 이 screen_size는 HandTrackingManager의 좌표 계산에 사용됩니다.
+        self.hand_manager = HandTrackingManager(self.camera, self.tkinter_queue, screen_size=(self.screen_width, self.screen_height))
+
         self.overlay_window, self.overlay_canvas = None, None
         self.original_screenshot, self.tk_screenshot = None, None
         self.is_logged_in, self.current_user, self.is_running, self.current_mode = False, None, False, "idle"
@@ -482,27 +548,39 @@ class IntegratedGUI:
                 elif cmd_type == 'update_box_drawing': self._update_screen_box_drawing(*command[1:])
                 elif cmd_type == 'stop_box_drawing': self._stop_screen_box_drawing()
         except queue.Empty: pass
-        self.root.after(50, self.process_tkinter_queue)
+        self.root.after(30, self.process_tkinter_queue)
     
     ### FIX 1: 회색 화면 문제를 해결하는 가장 안정적인 오버레이 방식 ###
     def _start_screen_box_drawing(self):
         if self.overlay_window: return
         try:
-            # 1. 먼저 화면 전체를 캡처
-            self.original_screenshot = pyautogui.screenshot()
+            # scrot 명령어로 전체 화면 캡처 (이전 단계와 동일)
+            screenshot_path = "/tmp/fullscreen_capture.png"
+            os.system(f"scrot -o {screenshot_path}")
+            self.original_screenshot = Image.open(screenshot_path)
             
-            # 2. 일반적인 전체 화면 창 생성 (투명도 속성 없음)
+            # 새 Toplevel 창 생성
             self.overlay_window = tk.Toplevel(self.root)
-            self.overlay_window.attributes('-topmost', True)
-            self.overlay_window.attributes('-fullscreen', True)
+            
+            # ### 결정적인 수정 부분 ###
+            # 1. '-fullscreen' 속성 대신, geometry를 사용하여 직접 크기와 위치를 설정합니다.
+            #    f-string을 사용하여 "1920x1080+0+0" 과 같은 형식의 문자열을 만듭니다.
+            #    의미: "가로 1920, 세로 1080 크기로, 화면 좌상단(x=0, y=0)에 위치시켜라"
+            self.overlay_window.geometry(f"{self.screen_width}x{self.screen_height}+0+0")
+            
+            # 2. 창 테두리(제목 표시줄 등)를 없애기 위해 이 속성은 여전히 필요합니다.
             self.overlay_window.overrideredirect(True)
             
-            # 3. 캡처한 스크린샷을 캔버스 배경으로 표시
+            # 3. 창을 다른 모든 창들보다 위에 있도록 설정합니다.
+            self.overlay_window.attributes('-topmost', True)
+            
+            # 캔버스에 캡처한 스크린샷을 배경으로 표시
             self.tk_screenshot = ImageTk.PhotoImage(self.original_screenshot)
             self.overlay_canvas = tk.Canvas(self.overlay_window, cursor="crosshair")
             self.overlay_canvas.pack(fill=tk.BOTH, expand=True)
             self.overlay_canvas.create_image(0, 0, image=self.tk_screenshot, anchor='nw')
-            print("✓ Screenshot-on-canvas overlay started.")
+            print("✓ Overlay started using explicit geometry.")
+
         except Exception as e:
             print(f"✗ Error starting screen box drawing: {e}")
             if self.overlay_window: self.overlay_window.destroy(); self.overlay_window = None
