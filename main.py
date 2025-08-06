@@ -78,7 +78,7 @@ class SharedCamera:
             while self.is_running:
                 try:
                     frame = self.picam2.capture_array()
-                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    #frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                     frame = cv2.flip(frame, 1)  # Mirror for better UX
                     
                     with self.frame_lock:
@@ -856,4 +856,5 @@ def main():
     app.run()
 
 if __name__ == "__main__":
+
     main() 
