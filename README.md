@@ -89,7 +89,7 @@ python main.py
     2.1 **사용자 등록**: `r`키 입력 후 이름 등록 및 얼굴 3면 촬영 <br>
     2.2 **사용자 로그인**: 1.5초 인식 후 로그인 성공 → 로그인 완료 후 손 제스처 모드 진입
 3. **손 제스처 모드** <br>
-    3.1 **Pointer 제스처** ☝: 마우스 이동 및 클릭 <br>
+    3.1 **Pointer 제스처** ☝️: 마우스 이동 및 클릭 <br>
     3.2 **Open 제스처** 🖐: Capture 모드 전환 → Pointer 제스처 이용해 1.5초간 고정하면 캡쳐 START와 END 영역 지정 <br>
     3.3 **Close 제스처** ✊: 캡처 실행 & OCR 수행
 7. **OCR 결과**: 터미널 출력 
@@ -152,7 +152,7 @@ fingerMouse/
 
 
 
-## 개발자
+## Collaborators
 
 > 본 프로젝트는 Raspberry Pi 기반 비전 인터페이스로 개발되었습니다.  
 > 개발자: [@summer-Gamba](https://github.com/summer-Gamba)
