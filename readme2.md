@@ -5,7 +5,6 @@
 <p align="center">
     <img src="https://img.shields.io/badge/Python-3.9+-blue?logo=python" alt="Python Version">
     <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi%205-orange.svg?logo=raspberrypi" alt="Platform">
-    <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
 </p>
 
 <p align="center">
