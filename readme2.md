@@ -3,7 +3,7 @@
   A smart interface to control a Raspberry Pi 5 using real-time face recognition and hand gesture analysis.
 </p>
 <p align="center">
-    <img src="https://img.shields.io/badge/Python-3.9+-blue?logo=python" alt="Python Version">
+    <img src="https://img.shields.io/badge/Python-3.10+-blue?logo=python" alt="Python Version">
     <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi%205-orange.svg?logo=raspberrypi" alt="Platform">
 </p>
 
