@@ -37,6 +37,7 @@ cd fingerMouse
 
 #### 2.2 가상환경 설정 및 필수 패키지 설치
 ```bash
+sudo apt update && sudo apt upgrade -y
 sudo apt install python3-picamera2
 
 python -m venv .venv --system-site-packages
