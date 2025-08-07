@@ -93,11 +93,15 @@
     터미널을 열고 아래 명령어를 순서대로 실행하여 모든 환경 설정 및 라이브러리를 설치합니다.
     ```bash
     # Step 1: Install system-level dependencies
-    sudo apt-get update
-    sudo apt-get install -y python3-tk python3-pil.imagetk
+    sudo apt update && sudo apt upgrade -y
+    sudo apt-get install -y python3-tk python3-pil.imagetk picamera2
 
-    # Step 2: Install required Python packages
-    pip install opencv-python numpy mediapipe pynput picamera2 pyautogui tflite-runtime tensorflow
+    # Step 2: Create Virtual Environment
+    python3 -m venv ~/venv --system-site-packages
+    source ~/venv/bin/activate
+
+    # Step 3: Install required Python packages
+    pip install opencv-python numpy mediapipe pynput pyautogui tflite-runtime tensorflow
     ```
 
 4.  **Configure Raspberry Pi.**
