@@ -154,5 +154,46 @@ fingerMouse/
 
 ## Collaborators
 
-> 본 프로젝트는 Raspberry Pi 기반 비전 인터페이스로 개발되었습니다.  
-> 개발자: [@summer-Gamba](https://github.com/summer-Gamba)
+<div align="center">
+
+<table>
+  <tr>
+    <th>Face Recognition</th>
+    <th>Hand Gesture</th>
+    <th>OCR</th>
+    <th>Hand Tracking</th>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/Bentlytrucker">
+        <img src="https://github.com/Bentlytrucker.png" width="100"><br>
+        <sub><b>박지용</b></sub>
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/mogld">
+        <img src="https://github.com/mogld.png" width="100"><br>
+        <sub><b>이진솔</b></sub>
+      </a>
+    </td> 
+    <td align="center">
+      <a href="https://github.com/Phaart1224">
+        <img src="https://github.com/Phaart1224.png" width="100"><br>
+        <sub><b>조승현</b></sub>
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/ijaemin">
+        <img src="https://github.com/ijaemin.png" width="100"><br>
+        <sub><b>이재민</b></sub>
+      </a>
+    </td>
+  </tr>
+</table>
+
+</div>
+
+
+
+
+
