@@ -8,7 +8,9 @@
 </p>
 
 <p align="center">
-  <img src="link_to_your_project_demo.gif" alt="Project Demo">
+  <img src="demo_result/face_login.jpg" width="200" alt="Face Login">
+  <img src="demo_result/gesture_capture.gif" width="250" alt="Gesture Capture">
+  <img src="demo_result/ocr_result.jpg" width="200" alt="OCR Result">
 </p>
 
 ## About The Project
