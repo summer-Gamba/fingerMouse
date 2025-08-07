@@ -53,12 +53,11 @@ FACE_DATABASE_FILENAME = "face/pi_face_database_multi.pkl"
 FRAME_WIDTH, FRAME_HEIGHT = 640, 480
 
 # OCR Models
-EAST_MODEL_PATH = "ocr/frozen_east_text_detection.pb"
-RECOGNIZER_MODEL_PATH = "ocr/recognizer_model.tflite"
+EAST_MODEL_PATH = "frozen_east_text_detection.pb"
+RECOGNIZER_MODEL_PATH = "recognizer_model.tflite"
 
 
 class SharedCamera:
-    # (이 클래스는 수정사항이 없습니다)
     def __init__(self):
         self.picam2, self.is_initialized, self.current_frame = None, False, None
         self.frame_lock, self.is_running, self.camera_thread = threading.Lock(), False, None
@@ -230,7 +229,6 @@ class FaceRecognitionManager:
 
 class HandTrackingManager:
     """Handles hand tracking, gesture recognition, and actions like OCR & screen capture."""
-    # ### 수정된 부분 1: __init__ 생성자에 screen_size 파라미터 추가 ###
     def __init__(self, camera, tkinter_queue=None, screen_size=None):
         self.camera = camera; self.tkinter_queue = tkinter_queue
         self.mp_hands = mp.solutions.hands; self.mp_drawing = mp.solutions.drawing_utils
@@ -241,96 +239,53 @@ class HandTrackingManager:
         self.is_initialized = False; self.current_mode = "Mouse Control"
         self.mode_toggle_cooldown = 0
         self.awaiting_ocr_confirmation, self.awaiting_capture_confirmation = False, False
-        self.mouse_controller = Controller()
 
-        # ### 수정된 부분 2: screen_size를 직접 받아서 사용 ###
+        # 마우스 컨트롤러 및 가속/감도 설정
+        self.mouse_controller = Controller()
+        self.mouse_sensitivity = 1.0      # 기본 감도
+        self.mouse_acceleration = 3.0     # 가속 계수
+
+        # 화면 크기
         if screen_size:
             self.screen_width, self.screen_height = screen_size
-            print(f"✓ Screen size received: {self.screen_width}x{self.screen_height}")
         else:
-            # 비상용 폴백 코드
-            print("Warning: Screen size not provided, attempting fallback detection.")
-            try:
-                root = tk.Tk(); root.withdraw()
-                self.screen_width, self.screen_height = root.winfo_screenwidth(), root.winfo_screenheight()
-                root.destroy()
-            except Exception as e:
-                print(f"Fallback screen size detection failed: {e}. Defaulting to 1920x1080.")
+            try: root = tk.Tk(); root.withdraw()
+                self.screen_width, self.screen_height = root.winfo_screenwidth(), root.winfo_screenheight(); root.destroy()
+            except:
                 self.screen_width, self.screen_height = 1920, 1080
 
+        self.prev_nx, self.prev_ny = None, None
         self.last_finger_pos, self.finger_stable_start_time = None, None
         self.finger_stable_threshold, self.dwell_click_duration = 20, 1.5
         self.capture_points, self.screen_capture_points = [], []
 
-    def initialize(self):
-        # (이하 initialize 함수 내용은 모두 동일)
-        if self.is_initialized: return True
-        try:
-            original_dir = os.getcwd()
-            if not os.path.exists('handMini2'): raise FileNotFoundError("'handMini2' directory not found.")
-            os.chdir('handMini2')
-            self.hands = self.mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.8)
-            self.keypoint_classifier = KeyPointClassifier()
-            os.chdir(original_dir); print("✓ Hand tracking models initialized")
-            
-            print("Loading OCR models...")
-            if not os.path.exists(EAST_MODEL_PATH): raise FileNotFoundError(f"EAST model not found: {EAST_MODEL_PATH}")
-            self.ocr_east_net = cv2.dnn.readNet(EAST_MODEL_PATH)
-            self.ocr_east_net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
-            self.ocr_east_net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
-            print("✓ OpenCV DNN backend set to CPU.")
-            
-            if not os.path.exists(RECOGNIZER_MODEL_PATH): raise FileNotFoundError(f"Recognizer model not found: {RECOGNIZER_MODEL_PATH}")
-            self.ocr_recognizer_interpreter = tflite.Interpreter(model_path=RECOGNIZER_MODEL_PATH)
-            self.ocr_recognizer_interpreter.allocate_tensors()
-            self.ocr_input_details = self.ocr_recognizer_interpreter.get_input_details()
-            self.ocr_output_details = self.ocr_recognizer_interpreter.get_output_details()
-            print("✓ OCR models loaded successfully")
-            self.is_initialized = True; return True
-        except Exception as e:
-            if 'original_dir' in locals(): os.chdir(original_dir)
-            print(f"✗ Hand tracking & OCR initialization error: {e}"); return False
-
-    
-    def process_frame(self, frame):
-        if not self.is_initialized or frame is None: return frame, None, None
-        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self.hands.process(img_rgb)
-        gesture = None
-        if results.multi_hand_landmarks:
-            for hand_landmarks in results.multi_hand_landmarks:
-                self.mp_drawing.draw_landmarks(frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
-                landmark_list = calc_landmark.calc_landmark(frame, hand_landmarks)
-                pre_processed = calc_landmark.pre_process_landmark(landmark_list)
-                gesture_id = self.keypoint_classifier(pre_processed)
-                gesture = self.keypoint_classifier.labels[gesture_id]
-                self.handle_gestures(gesture, hand_landmarks, frame)
-        self.draw_ui(frame); self.mode_toggle_cooldown = max(0, self.mode_toggle_cooldown - 1)
-        return frame, gesture, results.multi_hand_landmarks
-
+    def initialize(self): ...
+    def process_frame(self, frame): ...
     def handle_gestures(self, gesture, hand_landmarks, frame):
-        if gesture == "Open" and self.mode_toggle_cooldown == 0:
-            modes = ["Mouse Control", "Screen Capture & OCR"]
-            try:
-                current_index = modes.index(self.current_mode)
-                self.current_mode = modes[(current_index + 1) % len(modes)]
-            except ValueError: self.current_mode = "Mouse Control"
-            print(f"Mode changed to: {self.current_mode}")
-            self.reset_mode_state()
-            self.mode_toggle_cooldown = 30
-        
+        if gesture == "Open" and self.mode_toggle_cooldown == 0: ...
         elif gesture == "Pointer":
             tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_TIP]
-            finger_x, finger_y = int(tip.x * frame.shape[1]), int(tip.y * frame.shape[0])
-            screen_pos = self.map_finger_to_screen(finger_x, finger_y, frame.shape[1], frame.shape[0])
-            self.mouse_controller.position = screen_pos
-            if self.current_mode == "Mouse Control": self.handle_dwell_click(screen_pos)
-            elif self.current_mode == "Screen Capture & OCR": self.handle_screen_capture_pointing(screen_pos)
-        
+            nx, ny = tip.x, tip.y
+            # delta 계산
+            if self.prev_nx is not None:
+                dx_norm = nx - self.prev_nx
+                dy_norm = ny - self.prev_ny
+            else:
+                dx_norm, dy_norm = 0.0, 0.0
+            self.prev_nx, self.prev_ny = nx, ny
+
+            # 가속 적용
+            move_x = dx_norm * self.screen_width * self.mouse_sensitivity * (1 + self.mouse_acceleration * abs(dx_norm))
+            move_y = dy_norm * self.screen_height * self.mouse_sensitivity * (1 + self.mouse_acceleration * abs(dy_norm))
+            cur_x, cur_y = self.mouse_controller.position
+            new_x = max(0, min(self.screen_width - 1, int(cur_x + move_x)))
+            new_y = max(0, min(self.screen_height - 1, int(cur_y + move_y)))
+            self.mouse_controller.position = (new_x, new_y)
+
         elif gesture == "Close" and self.awaiting_capture_confirmation:
             self.perform_screen_capture_and_ocr()
             self.reset_mode_state()
-
+            
     def perform_screen_capture_and_ocr(self):
         if len(self.screen_capture_points) != 2: return
         x1, y1 = self.screen_capture_points[0]
@@ -372,16 +327,6 @@ class HandTrackingManager:
                 text = self._recognize_single_text(cropped)
                 texts.append(text)
 
-                # # ### 추가된 부분: 결과 이미지에 박스와 텍스트 그리기 ###
-                # # 인식된 영역에 초록색 사각형 그리기
-                # cv2.rectangle(result_image, (sx, sy), (ex, ey), (0, 255, 0), 2)
-                # # 인식된 텍스트를 사각형 위에 노란색으로 쓰기
-                # # 텍스트 배경을 위한 사각형 추가
-                # (text_width, text_height), baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-                # text_origin = (sx, sy - text_height - baseline if sy > 20 else sy + text_height + baseline)
-                # cv2.rectangle(result_image, (text_origin[0], text_origin[1] + baseline), (text_origin[0] + text_width, text_origin[1] - text_height), (0, 0, 0), -1)
-                # cv2.putText(result_image, text, text_origin, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-                
             full_text = ' '.join(texts)
             print(f"✓ OCR finished. Full text: {full_text}")
             
@@ -390,7 +335,6 @@ class HandTrackingManager:
         finally:
             self.stop_screen_box_drawing()
 
-    # --- 나머지 헬퍼 함수들은 변경 없음 ---
     def get_screen_size(self):
         try:
             root = tk.Tk(); root.withdraw()
@@ -508,7 +452,6 @@ class IntegratedGUI:
         self.root.geometry("800x600")
         self.root.configure(bg='#2c3e50')
 
-        # 1. 해상도를 1920x1080으로 고정하는 것은 그대로 유지합니다.
         self.screen_width, self.screen_height = 1920, 1080
         print(f"✓ Screen size manually set to: {self.screen_width}x{self.screen_height}")
 
@@ -516,7 +459,6 @@ class IntegratedGUI:
         self.camera = SharedCamera()
         self.face_manager = FaceRecognitionManager(self.camera)
 
-        # 이 screen_size는 HandTrackingManager의 좌표 계산에 사용됩니다.
         self.hand_manager = HandTrackingManager(self.camera, self.tkinter_queue, screen_size=(self.screen_width, self.screen_height))
 
         self.overlay_window, self.overlay_canvas = None, None
@@ -537,7 +479,6 @@ class IntegratedGUI:
         except queue.Empty: pass
         self.root.after(30, self.process_tkinter_queue)
     
-    ### FIX 1: 회색 화면 문제를 해결하는 가장 안정적인 오버레이 방식 ###
     def _start_screen_box_drawing(self):
         if self.overlay_window: return
         try:
@@ -549,10 +490,6 @@ class IntegratedGUI:
             # 새 Toplevel 창 생성
             self.overlay_window = tk.Toplevel(self.root)
             
-            # ### 결정적인 수정 부분 ###
-            # 1. '-fullscreen' 속성 대신, geometry를 사용하여 직접 크기와 위치를 설정합니다.
-            #    f-string을 사용하여 "1920x1080+0+0" 과 같은 형식의 문자열을 만듭니다.
-            #    의미: "가로 1920, 세로 1080 크기로, 화면 좌상단(x=0, y=0)에 위치시켜라"
             self.overlay_window.geometry(f"{self.screen_width}x{self.screen_height}+0+0")
             
             # 2. 창 테두리(제목 표시줄 등)를 없애기 위해 이 속성은 여전히 필요합니다.
@@ -584,8 +521,7 @@ class IntegratedGUI:
             finally:
                 self.overlay_window, self.overlay_canvas = None, None
                 self.original_screenshot, self.tk_screenshot = None, None # 참조 해제
-    
-    # --- 나머지 GUI 함수들은 이전과 동일 ---
+
     def setup_gui(self):
         main_frame = tk.Frame(self.root, bg='#2c3e50')
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
@@ -756,4 +692,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
