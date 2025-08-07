@@ -101,7 +101,7 @@
     source ~/venv/bin/activate
 
     # Step 3: Install required Python packages
-    pip install opencv-python numpy mediapipe pynput pyautogui tflite-runtime tensorflow
+    pip install -r requirment.txt
     ```
 
 4.  **Configure Raspberry Pi.**
