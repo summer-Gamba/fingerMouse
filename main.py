@@ -262,10 +262,6 @@ class HandTrackingManager:
         self.finger_stable_threshold, self.dwell_click_duration = 20, 1.5
         self.capture_points, self.screen_capture_points = [], []
 
-    # ### 삭제된 부분: 이 함수는 더 이상 필요 없으므로 클래스에서 완전히 제거합니다. ###
-    # def get_screen_size(self):
-    #     ...
-
     def initialize(self):
         # (이하 initialize 함수 내용은 모두 동일)
         if self.is_initialized: return True
@@ -350,10 +346,8 @@ class HandTrackingManager:
         try:
             # 1. 화면 캡처 (PIL Image 객체)
             screenshot_pil = pyautogui.screenshot(region=(left, top, width, height))
-            
-            # (선택) 캡처된 이미지를 파일로 저장
-            timestamp = time.strftime('%Y%m%d_%H%M%S')
-            filename = f"capture_{timestamp}.png"
+        
+            filename = f"capture.png"
             screenshot_pil.save(filename)
             print(f"✓ Screen capture saved as: {filename}")
 
@@ -378,26 +372,19 @@ class HandTrackingManager:
                 text = self._recognize_single_text(cropped)
                 texts.append(text)
 
-                # ### 추가된 부분: 결과 이미지에 박스와 텍스트 그리기 ###
-                # 인식된 영역에 초록색 사각형 그리기
-                cv2.rectangle(result_image, (sx, sy), (ex, ey), (0, 255, 0), 2)
-                # 인식된 텍스트를 사각형 위에 노란색으로 쓰기
-                # 텍스트 배경을 위한 사각형 추가
-                (text_width, text_height), baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-                text_origin = (sx, sy - text_height - baseline if sy > 20 else sy + text_height + baseline)
-                cv2.rectangle(result_image, (text_origin[0], text_origin[1] + baseline), (text_origin[0] + text_width, text_origin[1] - text_height), (0, 0, 0), -1)
-                cv2.putText(result_image, text, text_origin, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                # # ### 추가된 부분: 결과 이미지에 박스와 텍스트 그리기 ###
+                # # 인식된 영역에 초록색 사각형 그리기
+                # cv2.rectangle(result_image, (sx, sy), (ex, ey), (0, 255, 0), 2)
+                # # 인식된 텍스트를 사각형 위에 노란색으로 쓰기
+                # # 텍스트 배경을 위한 사각형 추가
+                # (text_width, text_height), baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+                # text_origin = (sx, sy - text_height - baseline if sy > 20 else sy + text_height + baseline)
+                # cv2.rectangle(result_image, (text_origin[0], text_origin[1] + baseline), (text_origin[0] + text_width, text_origin[1] - text_height), (0, 0, 0), -1)
+                # cv2.putText(result_image, text, text_origin, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
                 
             full_text = ' '.join(texts)
             print(f"✓ OCR finished. Full text: {full_text}")
             
-            # ### 추가된 부분: 최종 결과 이미지를 새 창으로 표시 ###
-            cv2.imshow("OCR Result", result_image)
-            # 사용자가 아무 키나 누를 때까지 대기
-            cv2.waitKey(0)
-            # 결과 창 닫기
-            cv2.destroyWindow("OCR Result")
-
         except Exception as e:
             print(f"✗ Screen capture or OCR failed: {e}")
         finally:
@@ -758,7 +745,7 @@ class IntegratedGUI:
         self.camera.close()
         self.hand_manager.stop_screen_box_drawing()
         cv2.destroyAllWindows()
-        print("✓ Application terminated")
+        print("Application terminated")
         if self.root:
             self.root.quit()
 
