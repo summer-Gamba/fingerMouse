@@ -7,11 +7,20 @@
     <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi%205-orange.svg?logo=raspberrypi" alt="Platform">
 </p>
 
-<p align="center">
-  <img src="demo_result/face_login.jpg" width="200" alt="Face Login">
-  <img src="demo_result/gesture_capture.gif" width="250" alt="Gesture Capture">
-  <img src="demo_result/ocr_result.jpg" width="200" alt="OCR Result">
-</p>
+<div align="center">
+  <h3>🧑‍💻 Face Login</h3>
+  <img src="demo_result/face_login.jpg" width="500" alt="Face Login">
+</div>
+
+<div align="center">
+  <h3>🖐️ Hand Gesture Capture</h3>
+  <img src="demo_result/gesture_capture.gif" width="600" alt="Gesture Capture">
+</div>
+
+<div align="center">
+  <h3>📄 OCR Result</h3>
+  <img src="demo_result/ocr_result.jpg" width="500" alt="OCR Result">
+</div>
 
 ## About The Project
 
