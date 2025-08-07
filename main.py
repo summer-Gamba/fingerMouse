@@ -53,8 +53,8 @@ FACE_DATABASE_FILENAME = "face/pi_face_database_multi.pkl"
 FRAME_WIDTH, FRAME_HEIGHT = 640, 480
 
 # OCR Models
-EAST_MODEL_PATH = "frozen_east_text_detection.pb"
-RECOGNIZER_MODEL_PATH = "recognizer_model.tflite"
+EAST_MODEL_PATH = "ocr/frozen_east_text_detection.pb"
+RECOGNIZER_MODEL_PATH = "ocr/recognizer_model.tflite"
 
 
 class SharedCamera:
@@ -756,3 +756,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
