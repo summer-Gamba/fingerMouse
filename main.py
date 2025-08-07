@@ -53,8 +53,8 @@ FACE_DATABASE_FILENAME = "face/pi_face_database_multi.pkl"
 FRAME_WIDTH, FRAME_HEIGHT = 640, 480
 
 # OCR Models
-EAST_MODEL_PATH = "frozen_east_text_detection.pb"
-RECOGNIZER_MODEL_PATH = "recognizer_model.tflite"
+EAST_MODEL_PATH = "ocr/frozen_east_text_detection.pb"
+RECOGNIZER_MODEL_PATH = "ocr/recognizer_model.tflite"
 
 
 class SharedCamera:
@@ -229,63 +229,106 @@ class FaceRecognitionManager:
 
 class HandTrackingManager:
     """Handles hand tracking, gesture recognition, and actions like OCR & screen capture."""
+    # ### 수정된 부분 1: __init__ 생성자에 screen_size 파라미터 추가 ###
     def __init__(self, camera, tkinter_queue=None, screen_size=None):
         self.camera = camera; self.tkinter_queue = tkinter_queue
         self.mp_hands = mp.solutions.hands; self.mp_drawing = mp.solutions.drawing_utils
         self.hands, self.keypoint_classifier = None, None
         self.ocr_east_net, self.ocr_recognizer_interpreter = None, None
         self.ocr_input_details, self.ocr_output_details = None, None
-        self.CHARSET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!\"#$%&'()*+,-./:;?@[\\]^_`{|}~ "
+        self.CHARSET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!\"#$%&'()*+,-./:;?@[\\]^_{|}~ "
         self.is_initialized = False; self.current_mode = "Mouse Control"
         self.mode_toggle_cooldown = 0
         self.awaiting_ocr_confirmation, self.awaiting_capture_confirmation = False, False
-
-        # 마우스 컨트롤러 및 가속/감도 설정
         self.mouse_controller = Controller()
-        self.mouse_sensitivity = 1.0      # 기본 감도
-        self.mouse_acceleration = 3.0     # 가속 계수
 
-        # 화면 크기
+        # ### 수정된 부분 2: screen_size를 직접 받아서 사용 ###
         if screen_size:
             self.screen_width, self.screen_height = screen_size
+            print(f"✓ Screen size received: {self.screen_width}x{self.screen_height}")
         else:
-            try: root = tk.Tk(); root.withdraw()
-                self.screen_width, self.screen_height = root.winfo_screenwidth(), root.winfo_screenheight(); root.destroy()
-            except:
+            # 비상용 폴백 코드
+            print("Warning: Screen size not provided, attempting fallback detection.")
+            try:
+                root = tk.Tk(); root.withdraw()
+                self.screen_width, self.screen_height = root.winfo_screenwidth(), root.winfo_screenheight()
+                root.destroy()
+            except Exception as e:
+                print(f"Fallback screen size detection failed: {e}. Defaulting to 1920x1080.")
                 self.screen_width, self.screen_height = 1920, 1080
 
-        self.prev_nx, self.prev_ny = None, None
         self.last_finger_pos, self.finger_stable_start_time = None, None
         self.finger_stable_threshold, self.dwell_click_duration = 20, 1.5
         self.capture_points, self.screen_capture_points = [], []
 
-    def initialize(self): ...
-    def process_frame(self, frame): ...
+    def initialize(self):
+        if self.is_initialized: return True
+        try:
+            original_dir = os.getcwd()
+            if not os.path.exists('handMini2'): raise FileNotFoundError("'handMini2' directory not found.")
+            os.chdir('handMini2')
+            self.hands = self.mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.8)
+            self.keypoint_classifier = KeyPointClassifier()
+            os.chdir(original_dir); print("✓ Hand tracking models initialized")
+            
+            print("Loading OCR models...")
+            if not os.path.exists(EAST_MODEL_PATH): raise FileNotFoundError(f"EAST model not found: {EAST_MODEL_PATH}")
+            self.ocr_east_net = cv2.dnn.readNet(EAST_MODEL_PATH)
+            self.ocr_east_net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+            self.ocr_east_net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+            print("✓ OpenCV DNN backend set to CPU.")
+            
+            if not os.path.exists(RECOGNIZER_MODEL_PATH): raise FileNotFoundError(f"Recognizer model not found: {RECOGNIZER_MODEL_PATH}")
+            self.ocr_recognizer_interpreter = tflite.Interpreter(model_path=RECOGNIZER_MODEL_PATH)
+            self.ocr_recognizer_interpreter.allocate_tensors()
+            self.ocr_input_details = self.ocr_recognizer_interpreter.get_input_details()
+            self.ocr_output_details = self.ocr_recognizer_interpreter.get_output_details()
+            print("✓ OCR models loaded successfully")
+            self.is_initialized = True; return True
+        except Exception as e:
+            if 'original_dir' in locals(): os.chdir(original_dir)
+            print(f"✗ Hand tracking & OCR initialization error: {e}"); return False
+
+    
+    def process_frame(self, frame):
+        if not self.is_initialized or frame is None: return frame, None, None
+        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = self.hands.process(img_rgb)
+        gesture = None
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                self.mp_drawing.draw_landmarks(frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
+                landmark_list = calc_landmark.calc_landmark(frame, hand_landmarks)
+                pre_processed = calc_landmark.pre_process_landmark(landmark_list)
+                gesture_id = self.keypoint_classifier(pre_processed)
+                gesture = self.keypoint_classifier.labels[gesture_id]
+                self.handle_gestures(gesture, hand_landmarks, frame)
+        self.draw_ui(frame); self.mode_toggle_cooldown = max(0, self.mode_toggle_cooldown - 1)
+        return frame, gesture, results.multi_hand_landmarks
+
     def handle_gestures(self, gesture, hand_landmarks, frame):
-        if gesture == "Open" and self.mode_toggle_cooldown == 0: ...
+        if gesture == "Open" and self.mode_toggle_cooldown == 0:
+            modes = ["Mouse Control", "Screen Capture & OCR"]
+            try:
+                current_index = modes.index(self.current_mode)
+                self.current_mode = modes[(current_index + 1) % len(modes)]
+            except ValueError: self.current_mode = "Mouse Control"
+            print(f"Mode changed to: {self.current_mode}")
+            self.reset_mode_state()
+            self.mode_toggle_cooldown = 30
+        
         elif gesture == "Pointer":
             tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_TIP]
-            nx, ny = tip.x, tip.y
-            # delta 계산
-            if self.prev_nx is not None:
-                dx_norm = nx - self.prev_nx
-                dy_norm = ny - self.prev_ny
-            else:
-                dx_norm, dy_norm = 0.0, 0.0
-            self.prev_nx, self.prev_ny = nx, ny
-
-            # 가속 적용
-            move_x = dx_norm * self.screen_width * self.mouse_sensitivity * (1 + self.mouse_acceleration * abs(dx_norm))
-            move_y = dy_norm * self.screen_height * self.mouse_sensitivity * (1 + self.mouse_acceleration * abs(dy_norm))
-            cur_x, cur_y = self.mouse_controller.position
-            new_x = max(0, min(self.screen_width - 1, int(cur_x + move_x)))
-            new_y = max(0, min(self.screen_height - 1, int(cur_y + move_y)))
-            self.mouse_controller.position = (new_x, new_y)
-
+            finger_x, finger_y = int(tip.x * frame.shape[1]), int(tip.y * frame.shape[0])
+            screen_pos = self.map_finger_to_screen(finger_x, finger_y, frame.shape[1], frame.shape[0])
+            self.mouse_controller.position = screen_pos
+            if self.current_mode == "Mouse Control": self.handle_dwell_click(screen_pos)
+            elif self.current_mode == "Screen Capture & OCR": self.handle_screen_capture_pointing(screen_pos)
+        
         elif gesture == "Close" and self.awaiting_capture_confirmation:
             self.perform_screen_capture_and_ocr()
             self.reset_mode_state()
-            
+
     def perform_screen_capture_and_ocr(self):
         if len(self.screen_capture_points) != 2: return
         x1, y1 = self.screen_capture_points[0]
