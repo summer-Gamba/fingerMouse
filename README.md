@@ -14,7 +14,7 @@
 
 <div align="center">
   <h3>🖐️ Hand Gesture Capture</h3>
-  <img src="demo_result/hand_gesture.jpg" width="600" alt="Gesture Capture">
+  <img src="demo_result/hand_capture.gif" width="600" alt="Gesture Capture">
 </div>
 
 <div align="center">
