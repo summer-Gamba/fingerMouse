@@ -86,7 +86,6 @@ class SharedCamera:
         while self.is_running:
             try:
                 frame = self.picam2.capture_array()
-               #frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                 frame = cv2.flip(frame, 1)
                 with self.frame_lock: self.current_frame = frame
             except Exception as e:
@@ -105,7 +104,6 @@ class SharedCamera:
 
 
 class FaceRecognitionManager:
-    # (이 클래스는 수정사항이 없습니다)
     def __init__(self, camera):
         self.camera = camera; self.models = {}; self.is_loaded = False
         self.detection_input = np.zeros((1, 480, 640, 1), dtype=np.float32)
@@ -229,7 +227,7 @@ class FaceRecognitionManager:
 
 class HandTrackingManager:
     """Handles hand tracking, gesture recognition, and actions like OCR & screen capture."""
-    # ### 수정된 부분 1: __init__ 생성자에 screen_size 파라미터 추가 ###
+    
     def __init__(self, camera, tkinter_queue=None, screen_size=None):
         self.camera = camera; self.tkinter_queue = tkinter_queue
         self.mp_hands = mp.solutions.hands; self.mp_drawing = mp.solutions.drawing_utils
@@ -242,12 +240,11 @@ class HandTrackingManager:
         self.awaiting_ocr_confirmation, self.awaiting_capture_confirmation = False, False
         self.mouse_controller = Controller()
 
-        # ### 수정된 부분 2: screen_size를 직접 받아서 사용 ###
+
         if screen_size:
             self.screen_width, self.screen_height = screen_size
             print(f"✓ Screen size received: {self.screen_width}x{self.screen_height}")
         else:
-            # 비상용 폴백 코드
             print("Warning: Screen size not provided, attempting fallback detection.")
             try:
                 root = tk.Tk(); root.withdraw()
@@ -535,13 +532,10 @@ class IntegratedGUI:
             
             self.overlay_window.geometry(f"{self.screen_width}x{self.screen_height}+0+0")
             
-            # 2. 창 테두리(제목 표시줄 등)를 없애기 위해 이 속성은 여전히 필요합니다.
             self.overlay_window.overrideredirect(True)
             
-            # 3. 창을 다른 모든 창들보다 위에 있도록 설정합니다.
             self.overlay_window.attributes('-topmost', True)
             
-            # 캔버스에 캡처한 스크린샷을 배경으로 표시
             self.tk_screenshot = ImageTk.PhotoImage(self.original_screenshot)
             self.overlay_canvas = tk.Canvas(self.overlay_window, cursor="crosshair")
             self.overlay_canvas.pack(fill=tk.BOTH, expand=True)
