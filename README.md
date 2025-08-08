@@ -7,6 +7,27 @@
     <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi%205-orange.svg?logo=raspberrypi" alt="Platform">
 </p>
 
+
+
+## Table of Contents
+1. [About The Project](#about-the-project)
+2. [실행 방법](#실행-방법)
+   - [1. 사전 준비](#1-사전-준비)
+   - [2. 설치](#2-설치)
+3. [Gesture Controls](#gesture-controls)
+4. [System Workflow](#system-workflow)
+   - [Detailed Flow](#detailed-flow)
+5. [Key Features](#key-features)
+6. [Tech Stack](#tech-stack)
+7. [Project Structure](#project-structure)
+8. [Acknowledgments](#acknowledgments)
+9. [Collaborators](#collaborators)
+
+---
+## About The Project
+
+이 프로젝트는 키보드나 마우스와 같은 전통적인 입력 장치 없이, 컴퓨터 비전 기술을 활용하여 사용자와 컴퓨터 간의 상호작용(HCI)을 구현하는 것을 목표로 합니다. 라즈베리파이 5와 카메라 모듈을 사용하여, 얼굴 인식을 통한 사용자 인증 및 손 제스처를 통한 마우스 제어, 화면 캡처, OCR 등의 복합적인 작업을 수행하는 통합 시스템입니다.
+
 <div align="center">
   <h3>🧑‍💻 Face Login</h3>
   <img src="demo_result/face_login.jpg" width="500" alt="Face Login">
@@ -22,11 +43,8 @@
   <img src="demo_result/ocr_result.jpg" width="500" alt="OCR Result">
 </div>
 
-## About The Project
-
-이 프로젝트는 키보드나 마우스와 같은 전통적인 입력 장치 없이, 컴퓨터 비전 기술을 활용하여 사용자와 컴퓨터 간의 상호작용(HCI)을 구현하는 것을 목표로 합니다. 라즈베리파이 5와 카메라 모듈을 사용하여, 얼굴 인식을 통한 사용자 인증 및 손 제스처를 통한 마우스 제어, 화면 캡처, OCR 등의 복합적인 작업을 수행하는 통합 시스템입니다.
-
 ---
+
 
 ## 실행 방법
 
@@ -136,7 +154,7 @@ python main.py
 
 ---
 
-## 프로젝트 구조
+## Project Structure
 
 ```bash
 fingerMouse/
