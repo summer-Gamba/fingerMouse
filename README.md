@@ -128,14 +128,23 @@ python main.py
 
 ## Key Features
 
-| 기능 | 설명 |
-|------|------|
-| 얼굴 인식 로그인 | TFLite 기반 Lightweight-FD + MobileFaceNet 모델 사용, 지속 인식 기반 안정적인 로그인 제공 |
-| 손 제스처 인식 | MediaPipe Hands + MLP 기반 제스처 분류기 활용 (Pointer, Open, Close 등) |
-| 마우스 제어 | Pointer 제스처로 커서 이동, 손가락 고정 시 dwell-click 수행 |
-| OCR 캡처 모드 | Open 제스처로 모드 전환 후 영역 지정 → Close 제스처로 캡처 실행 |
-| OCR 텍스트 인식 | EAST로 텍스트 박스 검출, CRNN 기반 TFLite 모델로 문자 추출 |
-| UI 시각화 | Tkinter 기반 전체 화면 오버레이 UI + 선택 영역 시각화 |
+**1. 얼굴 인식 로그인**  
+Lightweight-FD를 이용한 얼굴 검출과 MobileFaceNet 임베딩 모델을 TFLite로 경량화하여 라즈베리파이 환경에서 실시간 얼굴 인식을 수행한다. 지속적인 프레임 단위 매칭 검증 방식을 적용해 안정적인 사용자 인증을 보장한다.
+
+**2. 손 제스처 인식**  
+MediaPipe Hands로 추출한 21개 손 관절의 랜드마크(x, y)를 42차원 좌표 벡터로 변환하고, MLP 기반 Keypoint Classifier로 제스처를 분류한다. Pointer, Open, Close 등 다양한 제스처를 인식할 수 있다.
+
+**3. 마우스 제어**  
+Pointer 제스처로 커서를 이동하며, 손가락 위치를 일정 시간 고정하면 dwell-click을 수행한다. 이를 통해 물리적 클릭 장치 없이도 마우스 조작이 가능하다.
+
+**4. OCR 캡처 모드**  
+Open 제스처로 마우스 제어 모드와 캡처 모드를 전환하고, Pointer 제스처로 영역 시작과 끝을 지정한다. Close 제스처가 입력되면 해당 영역을 자동 캡처하여 OCR 모듈로 전달한다.
+
+**5. OCR 텍스트 인식**  
+EAST(Efficient and Accurate Scene Text Detector)로 텍스트 영역을 검출하고, CRNN 기반 문자 인식 모델로 문자를 추출한다. 모든 과정은 TFLite 기반으로 구현되어 임베디드 환경에서도 구동된다.
+
+**6. UI 시각화**  
+Tkinter 기반 풀스크린 오버레이 UI로 제스처 모드 상태, 선택 영역, OCR 결과 등을 시각적으로 표시하여 직관적인 사용자 경험을 제공한다.
 
 ---
 
