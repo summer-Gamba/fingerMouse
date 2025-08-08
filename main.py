@@ -485,6 +485,7 @@ class HandTrackingManager:
         elif self.current_mode == "Mouse Control": instruction = "Dwell for 1.5s to CLICK"
         if instruction: cv2.putText(frame, instruction, (10, frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
+# 기존 클래스들을 그대로 두고 아래 IntegratedGUI 클래스만 전체 교체하세요.
 class IntegratedGUI:
     def __init__(self):
         self.root = tk.Tk()
@@ -498,16 +499,25 @@ class IntegratedGUI:
         self.tkinter_queue = queue.Queue()
         self.camera = SharedCamera()
         self.face_manager = FaceRecognitionManager(self.camera)
-
         self.hand_manager = HandTrackingManager(self.camera, self.tkinter_queue, screen_size=(self.screen_width, self.screen_height))
 
         self.overlay_window, self.overlay_canvas = None, None
         self.original_screenshot, self.tk_screenshot = None, None
-        self.is_logged_in, self.current_user, self.is_running, self.current_mode = False, None, False, "idle"
+        
+        # --- 상태 변수 ---
+        self.is_logged_in = False
+        self.current_user = None
+        self.is_running = False
+        # CHANGED: 상태 추가 및 단순화
+        self.current_mode = "idle" # "idle", "face_recognition", "awaiting_name", "registration_capture", "hand_tracking"
         self.processing_thread = None
+        
+        # 등록 절차를 위한 상태 정보
+        self.registration_info = {}
+
         self.setup_gui()
         self.process_tkinter_queue()
-    
+
     def process_tkinter_queue(self):
         try:
             while not self.tkinter_queue.empty():
@@ -516,32 +526,50 @@ class IntegratedGUI:
                 if cmd_type == 'start_box_drawing': self._start_screen_box_drawing()
                 elif cmd_type == 'update_box_drawing': self._update_screen_box_drawing(*command[1:])
                 elif cmd_type == 'stop_box_drawing': self._stop_screen_box_drawing()
-        except queue.Empty: pass
-        self.root.after(30, self.process_tkinter_queue)
-    
+                # CHANGED: 메인 스레드에서 직접 이름 입력을 처리
+                elif cmd_type == 'get_registration_name':
+                    self._handle_registration_name_input()
+
+        except queue.Empty:
+            pass
+        self.root.after(50, self.process_tkinter_queue)
+
+    # NEW: 메인 스레드에서 이름 입력부터 상태 설정까지 모두 처리하는 함수
+    def _handle_registration_name_input(self):
+        name = self.simple_input_dialog("Enter name for registration:")
+        
+        if name:
+            print(f"Starting registration for: {name}")
+            self.registration_info = {
+                'name': name,
+                'angles': ["Front", "Left", "Right"],
+                'current_angle_idx': 0
+            }
+            # 처리 스레드가 사용할 상태를 여기서 안전하게 설정
+            self.current_mode = 'registration_capture'
+            self.update_status(f"Registering {name}: Show Front face.")
+        else:
+            print("✗ Registration cancelled.")
+            # 처리 스레드가 다시 얼굴 인식 모드로 돌아가도록 설정
+            self.current_mode = 'face_recognition'
+            self.update_status("Registration cancelled.")
+
     def _start_screen_box_drawing(self):
+        # ... (이하 _start, _update, _stop_screen_box_drawing 함수는 기존과 동일)
         if self.overlay_window: return
         try:
-            # scrot 명령어로 전체 화면 캡처 (이전 단계와 동일)
             screenshot_path = "/tmp/fullscreen_capture.png"
             os.system(f"scrot -o {screenshot_path}")
             self.original_screenshot = Image.open(screenshot_path)
-            
-            # 새 Toplevel 창 생성
             self.overlay_window = tk.Toplevel(self.root)
-            
             self.overlay_window.geometry(f"{self.screen_width}x{self.screen_height}+0+0")
-            
             self.overlay_window.overrideredirect(True)
-            
             self.overlay_window.attributes('-topmost', True)
-            
             self.tk_screenshot = ImageTk.PhotoImage(self.original_screenshot)
             self.overlay_canvas = tk.Canvas(self.overlay_window, cursor="crosshair")
             self.overlay_canvas.pack(fill=tk.BOTH, expand=True)
             self.overlay_canvas.create_image(0, 0, image=self.tk_screenshot, anchor='nw')
             print("✓ Overlay started using explicit geometry.")
-
         except Exception as e:
             print(f"✗ Error starting screen box drawing: {e}")
             if self.overlay_window: self.overlay_window.destroy(); self.overlay_window = None
@@ -557,9 +585,10 @@ class IntegratedGUI:
             except Exception: pass
             finally:
                 self.overlay_window, self.overlay_canvas = None, None
-                self.original_screenshot, self.tk_screenshot = None, None # 참조 해제
+                self.original_screenshot, self.tk_screenshot = None, None
 
     def setup_gui(self):
+        # ... (setup_gui는 기존과 동일)
         main_frame = tk.Frame(self.root, bg='#2c3e50')
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         title_label = tk.Label(main_frame, text="Face & Hand Tracking System", font=('Arial', 16, 'bold'), fg='white', bg='#2c3e50')
@@ -578,6 +607,7 @@ class IntegratedGUI:
         self.user_info_label.pack(pady=10)
 
     def start_face_recognition(self):
+        # ... (start_face_recognition은 기존과 동일)
         if self.is_running: return
         self.update_status("Initializing camera...")
         if not self.camera.initialize(): self.update_status("Camera initialization failed"); return
@@ -595,28 +625,52 @@ class IntegratedGUI:
             while self.is_running:
                 frame = self.camera.get_current_frame()
                 if frame is None: time.sleep(0.01); continue
-                
+
                 window_title = "System"
                 if self.current_mode == "face_recognition":
                     self.process_face_recognition(frame)
-                    window_title = "Face Recognition - Login"
+                    window_title = "Face Recognition - Login (r: Register, q: Quit)"
                 elif self.current_mode == "hand_tracking":
                     self.process_hand_tracking(frame)
-                    window_title = f"Hand Tracking - {self.current_user}"
+                    window_title = f"Hand Tracking - {self.current_user} (q: Quit)"
                 
+                # NEW: 이름 입력 대기 상태 처리
+                elif self.current_mode == "awaiting_name":
+                    # 메인 스레드가 이름 입력을 처리하는 동안 이 스레드는 아무것도 하지 않고 대기
+                    cv2.putText(frame, "Waiting for name input...", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
+                    window_title = "Face Registration"
+                
+                elif self.current_mode == "registration_capture":
+                    self.process_registration_capture(frame)
+                    window_title = "Face Registration (c: Capture, q: Cancel)"
+
                 cv2.imshow(window_title, frame)
                 key = cv2.waitKey(1) & 0xFF
 
-                if key == ord('q'): self.is_running = False
+                if key == ord('q'):
+                    if self.current_mode == "registration_capture":
+                        print("✗ Registration cancelled by user.")
+                        self.current_mode = "face_recognition"
+                    else:
+                        self.is_running = False
+                
                 elif key == ord('r'):
-                    if self.current_mode == "face_recognition": self.run_registration_flow()
-                    elif self.current_mode == "hand_tracking": self.hand_manager.handle_key(key)
+                    if self.current_mode == "face_recognition":
+                        self.initiate_registration_flow() # CHANGED
+                    elif self.current_mode == "hand_tracking":
+                        self.hand_manager.handle_key(key)
+                
+                elif key == ord('c'):
+                    if self.current_mode == "registration_capture":
+                        self.capture_registration_embedding(frame)
+
         except Exception as e:
             print(f"✗ Processing loop error: {e}")
         finally:
             self.is_running = False
-            self.root.after(0, self.cleanup)
+            self.root.after(0, self.request_cleanup)
 
+    # ... process_face_recognition, process_hand_tracking 함수는 기존과 동일
     def process_face_recognition(self, frame):
         frame, face_result, recognition_result = self.face_manager.process_frame(frame)
         if face_result:
@@ -639,47 +693,93 @@ class IntegratedGUI:
         self.hand_manager.process_frame(frame)
         cv2.putText(frame, f"User: {self.current_user}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-    def run_registration_flow(self):
-        name = self.simple_input_dialog("Enter name for registration:")
-        if not name: print("✗ Registration cancelled."); return
-        angles = ["Front", "Left", "Right"]
-        for i, angle in enumerate(angles):
-            while self.is_running:
-                frame = self.camera.get_current_frame()
-                if frame is None: continue
-                display_frame = frame.copy()
-                main_text = f"Show {angle} face ({i+1}/{len(angles)})"
-                sub_text = "'c': Capture | 'q': Cancel"
-                h, w, _ = display_frame.shape
-                cv2.rectangle(display_frame, (0, int(h*0.4)), (w, int(h*0.6)), (0,0,0), -1)
-                cv2.putText(display_frame, main_text, (int(w*0.1), int(h*0.5)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-                cv2.putText(display_frame, sub_text, (int(w*0.1), int(h*0.5) + 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-                face_result = self.face_manager.detect_face(frame)
-                if face_result:
-                    x, y, w, h, _ = face_result
-                    cv2.rectangle(display_frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-                cv2.imshow("Face Registration", display_frame)
-                key = cv2.waitKey(20) & 0xFF
-                if key == ord('c') and face_result:
-                    x, y, w, h, _ = face_result
-                    face_roi = frame[y:y+h, x:x+w]
-                    embedding = self.face_manager.get_face_embedding(face_roi)
-                    if embedding is not None: self.face_manager.register_face(name, embedding); break
-                    else: print("✗ Failed to get embedding. Please try again.")
-                elif key == ord('q'):
-                    print("✗ Registration cancelled by user."); cv2.destroyWindow("Face Registration"); return
-        print(f"✓ Registration complete for '{name}'."); self.face_manager.save_database(); cv2.destroyWindow("Face Registration")
+    # REFACTORED: 등록 절차를 매우 단순하게 시작
+    def initiate_registration_flow(self):
+        """처리 스레드의 상태를 바꾸고, 메인 스레드에 이름 입력을 요청합니다."""
+        self.current_mode = 'awaiting_name'
+        self.tkinter_queue.put(('get_registration_name',))
 
+    # process_registration_capture, capture_registration_embedding 함수는 기존과 거의 동일 (self.root.after 제거)
+    def process_registration_capture(self, frame):
+        if not self.registration_info or 'current_angle_idx' not in self.registration_info:
+            self.current_mode = 'face_recognition' # 안전장치
+            return
+
+        angle_idx = self.registration_info['current_angle_idx']
+        angles = self.registration_info['angles']
+        angle = angles[angle_idx]
+        
+        main_text = f"Show {angle} face ({angle_idx + 1}/{len(angles)})"
+        
+        h, w, _ = frame.shape
+        cv2.rectangle(frame, (0, h - 50), (w, h), (0, 0, 0), -1)
+        cv2.putText(frame, main_text, (10, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+
+        face_result = self.face_manager.detect_face(frame)
+        if face_result:
+            x, y, w_face, h_face, _ = face_result
+            cv2.rectangle(frame, (x, y), (x + w_face, y + h_face), (0, 255, 0), 2)
+
+    def capture_registration_embedding(self, frame):
+        if not self.registration_info: return
+
+        face_result = self.face_manager.detect_face(frame)
+        if not face_result:
+            self.update_status("Capture failed: No face detected.")
+            return
+
+        x, y, w, h, _ = face_result
+        face_roi = frame[y:y+h, x:x+w]
+        embedding = self.face_manager.get_face_embedding(face_roi)
+
+        if embedding is not None:
+            name = self.registration_info['name']
+            self.face_manager.register_face(name, embedding)
+            
+            self.registration_info['current_angle_idx'] += 1
+            
+            if self.registration_info['current_angle_idx'] >= len(self.registration_info['angles']):
+                print(f"✓ Registration complete for '{name}'.")
+                self.face_manager.save_database()
+                self.update_status(f"Registration complete for {name}.")
+                self.current_mode = 'face_recognition'
+                self.registration_info = {}
+            else:
+                next_angle_idx = self.registration_info['current_angle_idx']
+                next_angle = self.registration_info['angles'][next_angle_idx]
+                self.update_status(f"Registering {name}: Show {next_angle} face.")
+        else:
+            self.update_status("Capture failed: Could not get embedding.")
+
+    # simple_input_dialog, on_login_success, logout 함수는 기존과 동일
     def simple_input_dialog(self, prompt):
-        dialog = tk.Toplevel(self.root); dialog.title("Register Face"); dialog.transient(self.root); dialog.grab_set()
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Register Face")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        self.root.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - dialog.winfo_reqwidth()) / 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - dialog.winfo_reqheight()) / 2
+        dialog.geometry("+%d+%d" % (x, y))
+
         result = [None]
-        def on_ok(): result[0] = entry.get(); dialog.destroy()
-        tk.Label(dialog, text=prompt).pack(pady=10)
-        entry = tk.Entry(dialog, width=30); entry.pack(pady=5); entry.focus()
-        btn_frame = tk.Frame(dialog); btn_frame.pack(pady=10)
+        def on_ok():
+            res = entry.get()
+            if res.strip():
+                result[0] = res.strip()
+            dialog.destroy()
+
+        tk.Label(dialog, text=prompt).pack(pady=10, padx=10)
+        entry = tk.Entry(dialog, width=30)
+        entry.pack(pady=5, padx=10)
+        entry.focus()
+        btn_frame = tk.Frame(dialog)
+        btn_frame.pack(pady=10)
         tk.Button(btn_frame, text="OK", command=on_ok).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
-        entry.bind('<Return>', lambda e: on_ok()); dialog.wait_window()
+        entry.bind('<Return>', lambda e: on_ok())
+        dialog.wait_window()
         return result[0]
 
     def on_login_success(self):
@@ -688,11 +788,13 @@ class IntegratedGUI:
         self.logout_button.pack(side=tk.LEFT, padx=(0, 10))
         cv2.destroyAllWindows()
         self.update_status("Starting hand tracking...")
-        if not self.hand_manager.initialize(): self.update_status("Hand tracking initialization failed")
-        else: self.update_status(f"Hand tracking active for: {self.current_user}")
+        if not self.hand_manager.initialize():
+            self.update_status("Hand tracking initialization failed")
+        else:
+            self.update_status(f"Hand tracking active for: {self.current_user}")
 
     def logout(self):
-        self.is_logged_in, self.current_user, self.current_mode, self.is_running = False, None, "idle", False
+        self.is_logged_in, self.current_user, self.is_running = False, None, False
         self.hand_manager.reset_mode_state()
         self.update_status("Logged out")
         self.user_info_label.config(text="Not logged in")
@@ -701,26 +803,47 @@ class IntegratedGUI:
         cv2.destroyAllWindows()
 
     def update_status(self, message):
-        self.status_label.config(text=f"Status: {message}")
+        # UI 업데이트는 root가 살아있을 때만 가능
+        if self.root and self.root.winfo_exists():
+            self.status_label.config(text=f"Status: {message}")
         print(f"Status: {message}")
     
     def run(self):
-        self.root.protocol("WM_DELETE_WINDOW", self.cleanup)
-        try: self.root.mainloop()
-        finally: self.cleanup()
+        self.root.protocol("WM_DELETE_WINDOW", self.request_cleanup)
+        self.root.mainloop()
     
-    def cleanup(self):
-        if not self.is_running: return # Prevent multiple cleanup calls
-        print("Cleaning up resources...")
+    # 종료 프로세스를 더 안정적으로 변경
+    def request_cleanup(self):
+        if not self.is_running and self.processing_thread is None:
+            self.root.destroy()
+            return
+
+        print("Cleanup requested...")
         self.is_running = False
+        self.root.after(100, self.wait_for_thread_to_finish)
+
+    def wait_for_thread_to_finish(self):
+        if self.processing_thread and self.processing_thread.is_alive():
+            self.root.after(100, self.wait_for_thread_to_finish)
+        else:
+            self.cleanup()
+
+    def cleanup(self):
+        print("Cleaning up resources...")
         if self.processing_thread and self.processing_thread.is_alive():
             self.processing_thread.join(timeout=1)
+
         self.camera.close()
         self.hand_manager.stop_screen_box_drawing()
         cv2.destroyAllWindows()
         print("Application terminated")
         if self.root:
-            self.root.quit()
+            try:
+                self.root.destroy()
+            except tk.TclError:
+                pass # 이미 파괴된 경우
+            finally:
+                self.root = None
 
 def main():
     print("=== Integrated Face & Hand Tracking System (Final Version) ===")
