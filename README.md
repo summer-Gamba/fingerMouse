@@ -166,9 +166,10 @@ fingerMouse/
 
 - [Qualcomm AI Hub](https://github.com/quic/ai-hub-models) for lightweight face detection model
 - [Sirius AI](https://github.com/sirius-ai/MobileFaceNet_TF) for MobileFaceNet TensorFlow implementation
+- ARM for Cortex-A76 architecture optimization
+- [kinivi for hand gesture model based on MediaPipe](https://github.com/kinivi/hand-gesture-recognition-mediapipe)
 - Raspberry Pi Foundation for Raspberry Pi 5 and Camera Module 3
 - TensorFlow Lite team for optimized runtime
-- ARM for Cortex-A76 architecture optimization 
 
 ---
 
