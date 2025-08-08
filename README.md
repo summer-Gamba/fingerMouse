@@ -141,10 +141,10 @@ Pointer 제스처로 커서를 이동하며, 손가락 위치를 일정 시간 �
 Open 제스처로 마우스 제어 모드와 캡처 모드를 전환하고, Pointer 제스처로 영역 시작과 끝을 지정한다. Close 제스처가 입력되면 해당 영역을 자동 캡처하여 OCR 모듈로 전달한다.
 
 **5. OCR 텍스트 인식**  
-EAST(Efficient and Accurate Scene Text Detector)로 텍스트 영역을 검출하고, CRNN 기반 문자 인식 모델로 문자를 추출한다. 모든 과정은 TFLite 기반으로 구현되어 임베디드 환경에서도 구동된다.
+EAST(Efficient and Accurate Scene Text Detector)로 텍스트 영역을 검출하고, CRNN 기반 TFLite모델로 문자를 추출한다. 
 
 **6. UI 시각화**  
-Tkinter 기반 풀스크린 오버레이 UI로 제스처 모드 상태, 선택 영역, OCR 결과 등을 시각적으로 표시하여 직관적인 사용자 경험을 제공한다.
+Tkinter 기반 풀스크린 오버레이 UI로 제스처 모드 상태, 선택 영역 등을 시각적으로 표시한다.
 
 ---
 
