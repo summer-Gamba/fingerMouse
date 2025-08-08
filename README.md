@@ -132,7 +132,7 @@ python main.py
 Lightweight-FD를 이용한 얼굴 검출과 MobileFaceNet 임베딩 모델을 TFLite로 경량화하여 라즈베리파이 환경에서 실시간 얼굴 인식을 수행한다. 지속적인 프레임 단위 매칭 검증 방식을 적용해 안정적인 사용자 인증을 보장한다.
 
 **2. 손 제스처 인식**  
-MediaPipe Hands로 추출한 21개 손 관절의 랜드마크(x, y)를 42차원 좌표 벡터로 변환하고, MLP 기반 Keypoint Classifier로 제스처를 분류한다. Pointer, Open, Close 등 다양한 제스처를 인식할 수 있다.
+MediaPipe Hands로 추출한 손 관절 21개의 (x, y) 좌표를 입력 벡터로 변환한 뒤, MLP 기반 Keypoint Classifier로 Pointer, Open, Close 등의 제스처를 분류한다
 
 **3. 마우스 제어**  
 Pointer 제스처로 커서를 이동하며, 손가락 위치를 일정 시간 고정하면 dwell-click을 수행한다. 이를 통해 물리적 클릭 장치 없이도 마우스 조작이 가능하다.
