@@ -195,6 +195,8 @@ fingerMouse/
 - [Sirius AI](https://github.com/sirius-ai/MobileFaceNet_TF) for MobileFaceNet TensorFlow implementation
 - ARM for Cortex-A76 architecture optimization
 - [kinivi for hand gesture model based on MediaPipe](https://github.com/kinivi/hand-gesture-recognition-mediapipe)
+- [kerasOCR for TFLITE](https://www.tensorflow.org/lite/convert?hl=ko).
+- [How to convert EAST model to TFLITE](https://github.com/sayakpaul/Adventures-in-TensorFlow-Lite/blob/master/EAST_TFLite.ipynb)
 - Raspberry Pi Foundation for Raspberry Pi 5 and Camera Module 3
 - TensorFlow Lite team for optimized runtime
 
